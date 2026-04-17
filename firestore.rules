@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isAdmin() {
+      // Replace with the user's actual email, or allow any logged-in user if we verify it elsewhere
+      return request.auth != null && request.auth.token.email_verified == true && request.auth.token.email == 'lighthouse.abanerjee@gmail.com';
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['title', 'category', 'lang', 'excerpt', 'content', 'date', 'author']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.lang is string && data.lang.size() <= 10 &&
+             data.excerpt is string && data.excerpt.size() <= 1000 &&
+             data.content is string && data.content.size() <= 100000 &&
+             data.date is string && data.date.size() <= 100 &&
+             data.author is string && data.author.size() <= 100;
+    }
+
+    match /posts/{postId} {
+      // Anyone can read posts
+      allow read: if true;
+      
+      // Only the admin can create/update/delete
+      allow create: if isAdmin() && isValidPost(request.resource.data);
+      allow update: if isAdmin() && isValidPost(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

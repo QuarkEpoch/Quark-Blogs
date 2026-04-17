@@ -12,6 +12,15 @@ import {
   CATEGORY_LABELS, 
   CATEGORY_ICONS 
 } from './types';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 // Constants
 const EDITOR_PASSWORD = 'aB29022008@';
@@ -50,15 +59,22 @@ export default function App() {
 
   // --- Effects ---
   useEffect(() => {
-    // Load posts from localStorage
-    const storedPosts = localStorage.getItem('soumava_posts');
-    if (storedPosts) {
-      setPosts(JSON.parse(storedPosts));
-    }
-    
-    // Check session auth
-    const auth = sessionStorage.getItem(SESSION_KEY) === 'true';
-    setIsAuthenticated(auth);
+    // Firebase Auth State Listener
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      // Allow only the specific author email
+      setIsAuthenticated(user?.email === 'lighthouse.abanerjee@gmail.com');
+    });
+
+    // Firestore Real-time listener for posts
+    const unsubscribePosts = onSnapshot(collection(db, 'posts'), (snapshot) => {
+      const fetchedPosts: Post[] = [];
+      snapshot.forEach(doc => {
+        fetchedPosts.push({ id: doc.id, ...doc.data() } as Post);
+      });
+      // Sort by newest first
+      fetchedPosts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setPosts(fetchedPosts);
+    });
 
     // Fetch visitor count via proxy with a more unique namespace
     const targetUrl = 'https://api.counterapi.dev/v1/soumava-quark-blogs/total_hits/up';
@@ -82,13 +98,12 @@ export default function App() {
     // Navbar scroll listener
     const handleScroll = () => setIsScrolled(window.scrollY > 80);
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      unsubscribeAuth();
+      unsubscribePosts();
+    };
   }, []);
-
-  const savePostsToStorage = (newPosts: Post[]) => {
-    localStorage.setItem('soumava_posts', JSON.stringify(newPosts));
-    setPosts(newPosts);
-  };
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
@@ -96,19 +111,29 @@ export default function App() {
   };
 
   // --- Handlers ---
-  const handleVerifyPassword = () => {
-    if (password === EDITOR_PASSWORD) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem(SESSION_KEY, 'true');
-      setIsAuthModalOpen(false);
-      setPassword('');
-      showToast('Editor unlocked!');
-      if (editingPost) {
-        setIsEditorOpen(true);
+  const handleVerifyPassword = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user.email === 'lighthouse.abanerjee@gmail.com') {
+        setIsAuthModalOpen(false);
+        showToast('Editor unlocked!');
+        if (editingPost) {
+          setIsEditorOpen(true);
+        }
+      } else {
+        setPasswordError(true);
+        await firebaseSignOut(auth);
       }
-    } else {
+    } catch (error) {
+      console.error(error);
       setPasswordError(true);
     }
+  };
+
+  const handleLogout = async () => {
+    await firebaseSignOut(auth);
+    setIsEditorOpen(false);
+    showToast('Securely locked editor.');
   };
 
   const handleOpenEditor = (post: Post | null = null) => {
@@ -127,49 +152,56 @@ export default function App() {
     setIsEditorOpen(true);
   };
 
-  const handleSavePost = () => {
+  const handleSavePost = async () => {
     if (!postForm.title || !postForm.content) {
       alert('Please enter a title and content');
       return;
     }
 
-    let newPosts = [...posts];
-    if (editingPost) {
-      const idx = newPosts.findIndex(p => p.id === editingPost.id);
-      if (idx > -1) {
-        newPosts[idx] = { ...editingPost, ...postForm } as Post;
-        showToast('Post updated successfully!');
-      }
-    } else {
-      const newPost: Post = {
-        id: Date.now().toString(),
-        author: 'Quark Blogs',
-        date: new Date().toISOString().split('T')[0],
-        ...(postForm as Omit<Post, 'id' | 'author' | 'date'>)
+    try {
+      setIsSubmitting(true);
+      const postData = {
+        title: postForm.title,
+        category: postForm.category || 'law',
+        lang: postForm.lang || 'en',
+        excerpt: postForm.excerpt || '',
+        content: postForm.content,
+        image: postForm.image || '',
+        date: editingPost ? editingPost.date : new Date().toISOString().split('T')[0],
+        author: 'Soumava Banerjee'
       };
-      newPosts = [newPost, ...newPosts];
-      showToast('Post published successfully!');
-    }
 
-    savePostsToStorage(newPosts);
-    setIsEditorOpen(false);
+      if (editingPost) {
+        await updateDoc(doc(db, 'posts', editingPost.id), postData);
+        showToast('Post updated globally!');
+      } else {
+        await addDoc(collection(db, 'posts'), postData);
+        showToast('Post published to the world!');
+      }
+
+      setIsEditorOpen(false);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save post. Please ensure you are logged in correctly.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeletePost = (id: string, e: React.MouseEvent) => {
+  const handleDeletePost = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this post?')) {
-      const newPosts = posts.filter(p => p.id !== id);
-      savePostsToStorage(newPosts);
-      showToast('Post deleted successfully');
+    if (window.confirm('Are you sure you want to permanently delete this post?')) {
+      try {
+        await deleteDoc(doc(db, 'posts', id));
+        if (activePost?.id === id) setIsPostViewOpen(false);
+        showToast('Post gracefully removed.');
+      } catch (err) {
+        console.error(err);
+        showToast('Error removing post.');
+      }
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem(SESSION_KEY);
-    showToast('Editor locked.');
-    setIsEditorOpen(false);
-  };
 
   const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

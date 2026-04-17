@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Post": {
+      "title": "Post",
+      "description": "A blog post written by the author.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the post" },
+        "category": { "type": "string", "description": "Category of the post (e.g., law, literature)" },
+        "lang": { "type": "string", "enum": ["en", "bn"], "description": "Language of the post" },
+        "excerpt": { "type": "string", "description": "Short excerpt" },
+        "content": { "type": "string", "description": "Main Markdown content" },
+        "image": { "type": "string", "description": "Optional image URL" },
+        "date": { "type": "string", "description": "Date string" },
+        "author": { "type": "string", "description": "Author name" }
+      },
+      "required": ["title", "category", "lang", "excerpt", "content", "date", "author"]
+    }
+  },
+  "firestore": {
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Stores all blog posts."
+    }
+  }
+}
