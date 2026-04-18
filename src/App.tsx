@@ -45,7 +45,9 @@ export default function App() {
   // --- Auth Logic ---
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+  const [authErrorMessage, setAuthErrorMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // --- Editor State ---
   const [postForm, setPostForm] = useState<Partial<Post>>({
@@ -112,13 +114,17 @@ export default function App() {
 
   // --- Handlers ---
   const handleVerifyPassword = async () => {
+    setAuthErrorMessage('');
     if (password === EDITOR_PASSWORD) {
+      setIsAuthenticating(true);
       try {
         if (!auth.currentUser || auth.currentUser.email !== 'lighthouse.abanerjee@gmail.com') {
           const result = await signInWithPopup(auth, googleProvider);
           if (result.user.email !== 'lighthouse.abanerjee@gmail.com') {
             await firebaseSignOut(auth);
+            setAuthErrorMessage('Unauthorized account. Please use the correct logged-in Google account.');
             setPasswordError(true);
+            setIsAuthenticating(false);
             return;
           }
         }
@@ -132,11 +138,23 @@ export default function App() {
         if (editingPost) {
           setIsEditorOpen(true);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
+        if (error.code === 'auth/unauthorized-domain') {
+          setAuthErrorMessage('Domain not authorized in Firebase. Check instructions below.');
+        } else if (error.code === 'auth/popup-blocked') {
+          setAuthErrorMessage('Popup blocked by browser. Please allow popups for this site.');
+        } else if (error.code === 'auth/popup-closed-by-user') {
+          setAuthErrorMessage('Popup was closed before finishing sign in.');
+        } else {
+          setAuthErrorMessage(error.message || 'Authentication failed.');
+        }
         setPasswordError(true);
+      } finally {
+        setIsAuthenticating(false);
       }
     } else {
+      setAuthErrorMessage('');
       setPasswordError(true);
     }
   };
@@ -795,6 +813,11 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     className="p-4 rounded-xl bg-brand-900/20 border border-brand-800/30 text-center"
                   >
+                    {authErrorMessage && (
+                      <p className="text-red-400 font-medium text-sm mb-3 px-2">
+                        {authErrorMessage}
+                      </p>
+                    )}
                     <p className="text-brand-400 text-sm">
                       This section is strictly restricted to the site author.
                     </p>
@@ -809,10 +832,15 @@ export default function App() {
 
                 <button 
                   onClick={handleVerifyPassword}
-                  className="w-full flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-600 shadow-lg shadow-brand-900/30"
+                  disabled={isAuthenticating}
+                  className="w-full flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-brand-700 text-white font-semibold hover:bg-brand-600 shadow-lg shadow-brand-900/30 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <Unlock className="w-4 h-4" />
-                  Unlock Editor
+                  {isAuthenticating ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Unlock className="w-4 h-4" />
+                  )}
+                  {isAuthenticating ? 'Authenticating...' : 'Unlock Editor'}
                 </button>
               </div>
               <button 
