@@ -141,7 +141,7 @@ export default function App() {
       } catch (error: any) {
         console.error(error);
         if (error.code === 'auth/unauthorized-domain') {
-          setAuthErrorMessage('Domain not authorized in Firebase. Check instructions below.');
+          setAuthErrorMessage(`Domain "${window.location.hostname}" is not authorized in Firebase. Please add exactly this domain to Firebase Auth > Settings > Authorized domains.`);
         } else if (error.code === 'auth/popup-blocked') {
           setAuthErrorMessage('Popup blocked by browser. Please allow popups for this site.');
         } else if (error.code === 'auth/popup-closed-by-user') {
