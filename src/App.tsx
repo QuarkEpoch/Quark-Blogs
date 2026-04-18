@@ -13,15 +13,17 @@ import {
   CATEGORY_ICONS 
 } from './types';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 // Constants
+const EDITOR_PASSWORD = 'aB29022008@';
 const SESSION_KEY = 'soumava_auth';
 
 export default function App() {
@@ -57,11 +59,11 @@ export default function App() {
     content: ''
   });
 
-  // --- Effects ---
+   // --- Effects ---
   useEffect(() => {
     // Firebase Auth State Listener
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      const isLocalAuth = sessionStorage.getItem(SESSION_KEY) === 'true';
+      const isLocalAuth = localStorage.getItem(SESSION_KEY) === 'true';
       setIsAuthenticated(isLocalAuth && user?.email === 'lighthouse.abanerjee@gmail.com');
     });
 
@@ -113,43 +115,54 @@ export default function App() {
   // --- Handlers ---
   const handleVerifyPassword = async () => {
     setAuthErrorMessage('');
-    setIsAuthenticating(true);
-    
-    try {
-      // Use Firebase Email/Password Auth under the hood
-      // This happens silently without any Google popups
-      await signInWithEmailAndPassword(auth, 'lighthouse.abanerjee@gmail.com', password);
-      
-      setIsAuthenticated(true);
-      sessionStorage.setItem(SESSION_KEY, 'true');
-      setIsAuthModalOpen(false);
-      setPassword('');
-      setPasswordError(false);
-      showToast('Editor unlocked!');
-      if (editingPost) {
-        setIsEditorOpen(true);
+    if (password === EDITOR_PASSWORD) {
+      setIsAuthenticating(true);
+      try {
+        if (!auth.currentUser || auth.currentUser.email !== 'lighthouse.abanerjee@gmail.com') {
+          const result = await signInWithPopup(auth, googleProvider);
+          if (result.user.email !== 'lighthouse.abanerjee@gmail.com') {
+            await firebaseSignOut(auth);
+            setAuthErrorMessage('Unauthorized account. Please use the correct logged-in Google account.');
+            setPasswordError(true);
+            setIsAuthenticating(false);
+            return;
+          }
+        }
+        
+        setIsAuthenticated(true);
+        localStorage.setItem(SESSION_KEY, 'true');
+        setIsAuthModalOpen(false);
+        setPassword('');
+        setPasswordError(false);
+        showToast('Editor unlocked!');
+        if (editingPost) {
+          setIsEditorOpen(true);
+        }
+      } catch (error: any) {
+        console.error(error);
+        if (error.code === 'auth/unauthorized-domain') {
+          setAuthErrorMessage('Domain not authorized in Firebase. Check instructions below.');
+        } else if (error.code === 'auth/popup-blocked') {
+          setAuthErrorMessage('Popup blocked by browser. Please allow popups for this site.');
+        } else if (error.code === 'auth/popup-closed-by-user') {
+          setAuthErrorMessage('Popup was closed before finishing sign in.');
+        } else {
+          setAuthErrorMessage(error.message || 'Authentication failed.');
+        }
+        setPasswordError(true);
+      } finally {
+        setIsAuthenticating(false);
       }
-    } catch (error: any) {
-      console.error(error);
+    } else {
+      setAuthErrorMessage('');
       setPasswordError(true);
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        setAuthErrorMessage(''); // Let the default collaboration UI handle wrong passwords
-      } else if (error.code === 'auth/user-not-found') {
-        setAuthErrorMessage('Database user not found. See setup instructions from agent.');
-      } else if (error.code === 'auth/too-many-requests') {
-        setAuthErrorMessage('Too many failed attempts. Try again later.');
-      } else {
-        setAuthErrorMessage(error.message || 'Authentication failed.');
-      }
-    } finally {
-      setIsAuthenticating(false);
     }
   };
 
   const handleLogout = async () => {
     await firebaseSignOut(auth);
     setIsAuthenticated(false);
-    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
     setIsEditorOpen(false);
     showToast('Securely locked editor.');
   };
