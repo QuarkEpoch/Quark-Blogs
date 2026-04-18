@@ -3,7 +3,7 @@ import {
   PenLine, Menu, Scale, BookOpen, Newspaper, TrendingUp, Feather, 
   ArrowRight, Calendar, Plus, User, Mail, Send, Lock, Unlock, 
   Eye, EyeOff, X, Check, Trash2, Pencil, LogOut, CheckCircle,
-  FileText, GraduationCap
+  FileText, GraduationCap, Link2, MessageCircle, Twitter, Facebook
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -233,6 +233,30 @@ export default function App() {
     }
   };
 
+  const handleShare = async (platform: string, post: Post) => {
+    const url = window.location.href; // In a real routing setup, this would be the post URL
+    const text = `Check out this amazing post: "${post.title}" on Quark Blogs`;
+
+    switch (platform) {
+      case 'whatsapp':
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+        break;
+      case 'copy':
+        try {
+          await navigator.clipboard.writeText(url);
+          showToast('Link copied to clipboard!');
+        } catch (err) {
+          showToast('Failed to copy link.');
+        }
+        break;
+    }
+  };
 
   const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -588,11 +612,36 @@ export default function App() {
                     )}
                   </div>
                   <div className="p-6">
-                    <div className="flex items-center gap-3 text-xs text-neutral-500 mb-3">
+                    <div className="flex items-center justify-between text-xs text-neutral-500 mb-3">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                       </span>
+                      
+                      {/* Standard Share Options */}
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleShare('whatsapp', post); }}
+                          className="p-1.5 rounded-md hover:bg-neutral-800 text-neutral-400 hover:text-green-500 transition-colors"
+                          title="Share on WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleShare('twitter', post); }}
+                          className="p-1.5 rounded-md hover:bg-neutral-800 text-neutral-400 hover:text-blue-400 transition-colors"
+                          title="Share on X (Twitter)"
+                        >
+                          <Twitter className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleShare('copy', post); }}
+                          className="p-1.5 rounded-md hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors"
+                          title="Copy Link"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <h3 className={`font-serif text-xl font-semibold text-white mb-2 group-hover:text-brand-400 transition-colors line-clamp-2 ${post.lang === 'bn' ? 'font-bengali' : ''}`}>
                       {post.title}
@@ -630,10 +679,10 @@ export default function App() {
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden aspect-[4/5] max-w-md mx-auto lg:mx-0 shadow-2xl shadow-black/50">
                 <img 
-                  src="https://picsum.photos/seed/pen/800/1000" 
-                  alt="Quark Blogs" 
+                  src="/author.webp" 
+                  alt="Soumava Banerjee" 
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover" 
+                  className="w-full h-full object-cover bg-neutral-800" 
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-transparent to-transparent"></div>
                 <div className="absolute bottom-6 left-6 right-6">
@@ -991,15 +1040,33 @@ export default function App() {
                   {activePost.title}
                 </h1>
 
-                <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-400 mb-8 pb-8 border-b border-neutral-700/50">
-                  <span className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white"><Scale className="w-4 h-4" /></div>
-                    {activePost.author}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(activePost.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-700/50 mb-8 pb-8">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-400">
+                    <span className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white"><Scale className="w-4 h-4" /></div>
+                      {activePost.author}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      {new Date(activePost.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-500 font-medium mr-2">SHARE</span>
+                    <button onClick={() => handleShare('whatsapp', activePost)} className="p-2 rounded-lg bg-neutral-800/80 text-neutral-300 hover:text-green-500 hover:bg-neutral-800 transition-all">
+                      <MessageCircle className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleShare('twitter', activePost)} className="p-2 rounded-lg bg-neutral-800/80 text-neutral-300 hover:text-blue-400 hover:bg-neutral-800 transition-all">
+                      <Twitter className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleShare('facebook', activePost)} className="p-2 rounded-lg bg-neutral-800/80 text-neutral-300 hover:text-blue-600 hover:bg-neutral-800 transition-all">
+                      <Facebook className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleShare('copy', activePost)} className="p-2 rounded-lg bg-neutral-800/80 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-all">
+                      <Link2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div 
