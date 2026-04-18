@@ -679,10 +679,10 @@ export default function App() {
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden aspect-[4/5] max-w-md mx-auto lg:mx-0 shadow-2xl shadow-black/50">
                 <img 
-                  src="/author.webp" 
-                  alt="Soumava Banerjee" 
+                  src="https://picsum.photos/seed/pen/800/1000" 
+                  alt="Quark Blogs" 
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover bg-neutral-800" 
+                  className="w-full h-full object-cover" 
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-transparent to-transparent"></div>
                 <div className="absolute bottom-6 left-6 right-6">
